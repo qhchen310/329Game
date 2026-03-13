@@ -27,7 +27,6 @@ typedef struct
 bool Renderer_Init(SDL_Renderer *renderer, int queueCapacity);
 void Renderer_Submit(SDL_Texture *tex, SDL_FRect src, SDL_FRect dst, float depth);
 void Renderer_SubmitTile(const Camera *cam, TileTypeID tileID, float gx, float gy, float z_offset);
-void Renderer_Present(SDL_Renderer *renderer); // 内部执行 Flush
 void RenderQueue_Sort();
 void RenderQueue_DrawAll(SDL_Renderer *renderer);
 void RenderQueue_Destroy(RenderQueue *queue);

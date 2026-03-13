@@ -7,6 +7,7 @@
 #include "camera.h"
 #include "tile.h"
 #include "map.h"
+#include "config.h"
 
 // ---------------------------------------------------------
 // 1. 定义应用全局状态 (AppState)
@@ -39,8 +40,8 @@ SDL_Texture *CreateHeroAtlas(SDL_Renderer *renderer)
         for (int frame = 0; frame < 4; frame++)
         {
             // 计算当前帧在图集里的绝对起始位置
-            int slotX = frame * 64;
-            int slotY = dir * 64;
+            int slotX = frame * TILE_WIDTH;
+            int slotY = dir * TILE_HEIGHT;
 
             // 1. 画身体 (所有的英雄部位都限制在各自的 slot 内部)
             // 身体放在槽位下半部分，靠近脚底 (32, 64)
@@ -73,7 +74,7 @@ SDL_Texture *CreateHeroAtlas(SDL_Renderer *renderer)
 
 SDL_Texture *CreateHeroShadowAtlas(SDL_Renderer *renderer)
 {
-    int atlasH = DIR_NONE * 64;
+    int atlasH = DIR_NONE * TILE_HEIGHT;
     SDL_Surface *surf = SDL_CreateSurface(256, atlasH, SDL_PIXELFORMAT_RGBA8888);
     SDL_FillSurfaceRect(surf, NULL, 0x00000000);
 
@@ -81,8 +82,8 @@ SDL_Texture *CreateHeroShadowAtlas(SDL_Renderer *renderer)
     {
         for (int frame = 0; frame < 4; frame++)
         {
-            int slotX = frame * 64;
-            int slotY = dir * 64;
+            int slotX = frame * TILE_WIDTH;
+            int slotY = dir * TILE_HEIGHT;
 
             // 基础影子属性
             int sw = 40; // 宽度
@@ -155,8 +156,8 @@ SDL_Texture *CreateHeroShadowAtlas(SDL_Renderer *renderer)
 // ---------------------------------------------------------
 void SetupTileLibrary(AppState *as)
 {
-    const float SLOT = 64.0f;
-    const float PIVOT_X = 32.0f; // 宽度一半
+    const float SLOT = TILE_WIDTH;
+    const float PIVOT_X = TILE_WIDTH / 2.0f; // 宽度一半
 
     // ID 0: 草地 - 虽然内容只有 32 高，但我们在 64x64 槽位里定义它
     Tile_Define(TILE_GRASS, 0, 0, SLOT, SLOT, PIVOT_X, 0, true);
@@ -182,21 +183,31 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
 
     *appstate = as;
 
-    if (!SDL_CreateWindowAndRenderer("SDL3 2.5D Engine", 800, 600, 0, &as->window, &as->renderer))
+    if (!SDL_CreateWindowAndRenderer(TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, 0, &as->window, &as->renderer))
     {
         SDL_Log("Window/Renderer Create Failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
-    if (!Renderer_Init(as->renderer, 1024))
+    if (!Renderer_Init(as->renderer, QUEUE_INITIAL_CAPACITY))
     {
         SDL_Log("Renderer_Init (Loading PNG) Failed!");
         return SDL_APP_FAILURE;
     }
 
-    as->camera = Camera_Create(64.0f, 32.0f, 400.0f, 200.0f); // 初始偏移到窗口中心
-    as->map = Map_Create(20, 20);                             // 地图稍微大一点
+    // 初始化地图
+    as->map = Map_Create(MAP_WIDTH, MAP_HEIGHT); // 地图稍微大一点
+
+    // 初始化玩家
     Player_Init(&as->player);
+
+    as->camera = Camera_Create(TILE_WIDTH, TILE_HEIGHT, -WINDOW_WIDTH / 2, 0); // 初始偏移到窗口中心
+    // 让相机瞄准玩家
+    Camera_LookAt(as->camera, as->player.gridX, as->player.gridY, WINDOW_WIDTH, WINDOW_HEIGHT);
+    // 直接对齐，避免开场动画
+    Camera_Snap(as->camera);
+
+    // 初始化时间戳
     as->lastTime = SDL_GetTicks();
 
     // 生成并定义图集
@@ -218,7 +229,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     }
 
     // 填充地图数据
-    for (int i = 0; i < 400; i++)
+    for (int i = 0; i < MAP_WIDTH * MAP_HEIGHT; i++)
         as->map->groundLayer[i] = 0; // 全是草地
 
     SDL_Log("SDL_AppInit Success!");
@@ -246,10 +257,10 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     SDL_RenderClear(as->renderer);
 
     // // 1. 让相机瞄准玩家
-    // Camera_LookAt(as->camera, as->player.gridX, as->player.gridY, 800, 600);
+    Camera_LookAt(as->camera, as->player.gridX, as->player.gridY, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     // // 2. 执行平滑移动
-    // Camera_Update(as->camera, dt);
+    Camera_Update(as->camera, dt);
 
     // 1. 渲染地表层 (增加安全检查)
     for (int y = 0; y < as->map->height; y++)
@@ -283,11 +294,11 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     }
 
     // 3.渲染玩家 (假设玩家图片 32x64, 重心在脚底 16, 64)
-    // SDL_FRect heroSrc = {(float)as->player.currentFrame * 64.0f, (float)as->player.dir * 64.0f, 64.0f, 64.0f};
-    // SDL_FPoint pPos = Camera_GridToScreen(as->camera, as->player.gridX, as->player.gridY);
-    // SDL_FRect pDst = {pPos.x - 32, pPos.y - 64, 64, 64}; // 使用统一重心
-    // RenderQueue_Push(as->renderQueue, as->heroShadowTexture, heroSrc, pDst, as->player.gridX + as->player.gridY - 0.01f);
-    // RenderQueue_Push(as->renderQueue, as->heroTexture, heroSrc, pDst, as->player.gridX + as->player.gridY);
+    SDL_FRect heroSrc = {(float)as->player.currentFrame * 64.0f, (float)as->player.dir * 64.0f, 64.0f, 64.0f};
+    SDL_FPoint pPos = Camera_GridToScreen(as->camera, as->player.gridX, as->player.gridY);
+    SDL_FRect pDst = {pPos.x - 32, pPos.y - 64, 64, 64}; // 使用统一重心
+    // Renderer_Submit(as->renderQueue, as->heroShadowTexture, heroSrc, pDst, as->player.gridX + as->player.gridY - 0.01f);
+    Renderer_Submit(as->heroTexture, heroSrc, pDst, as->player.gridX + as->player.gridY);
 
     // 4. 执行排序渲染
     RenderQueue_Sort();

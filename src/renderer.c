@@ -12,7 +12,6 @@ static RenderQueue *main_queue = NULL; // 内部持有队列实例
 
 static int CompareDepth(const void *a, const void *b);
 static RenderQueue *RenderQueue_Create(int capacity);
-static void RenderQueue_Flush(RenderQueue *self, SDL_Renderer *renderer);
 static void RenderQueue_Push(RenderQueue *self, SDL_Texture *tex, SDL_FRect src, SDL_FRect dst, float depth);
 
 static int CompareDepth(const void *a, const void *b)
@@ -38,37 +37,6 @@ static RenderQueue *RenderQueue_Create(int capacity)
     queue->count = 0;
     queue->capacity = capacity;
     return queue;
-}
-
-static void RenderQueue_Flush(RenderQueue *self, SDL_Renderer *renderer)
-{
-    if (!self || self->count == 0)
-        return;
-
-    // 1. 排序
-    qsort(self->items, self->count, sizeof(RenderItem), CompareDepth);
-
-    // 2. 遍历渲染
-    for (int i = 0; i < self->count; i++)
-    {
-        RenderItem *item = &self->items[i];
-
-        // --- 核心修正：判断纹理是否存在 ---
-        if (item->texture != NULL)
-        {
-            // 正常画图集里的瓦片
-            SDL_RenderTexture(renderer, item->texture, &item->srcRect, &item->dstRect);
-        }
-        else
-        {
-            // 如果纹理是空的（比如目前的玩家），画一个红色方块占位，防止崩溃
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // 红色
-            SDL_RenderFillRect(renderer, &item->dstRect);
-        }
-    }
-
-    // 3. 重置计数
-    self->count = 0;
 }
 
 /**
@@ -163,12 +131,6 @@ void Renderer_SubmitTile(const Camera *cam, TileTypeID tileID, float gx, float g
     RenderQueue_Push(main_queue, game_atlas, tile->srcRect, dst, depth);
 }
 
-// 包装一层 Flush，改名为 Present（提交显示）
-void Renderer_Present(SDL_Renderer *renderer)
-{
-    RenderQueue_Flush(main_queue, renderer);
-}
-
 void RenderQueue_Sort()
 {
     if (!main_queue || main_queue->count <= 1)
@@ -186,8 +148,17 @@ void RenderQueue_DrawAll(SDL_Renderer *renderer)
     for (int i = 0; i < main_queue->count; i++)
     {
         RenderItem *item = &main_queue->items[i];
-        // SDL3 的新接口：支持浮点数坐标，防止像素抖动
-        SDL_RenderTexture(renderer, item->texture, &item->srcRect, &item->dstRect);
+
+        if (item->texture != NULL)
+        { // 正常画图集里的瓦片
+            SDL_RenderTexture(renderer, item->texture, &item->srcRect, &item->dstRect);
+        }
+        else
+        {
+            // 如果纹理是空的（比如目前的玩家），画一个红色方块占位，防止崩溃
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // 红色
+            SDL_RenderFillRect(renderer, &item->dstRect);
+        }
     }
 }
 
