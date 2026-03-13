@@ -1,0 +1,36 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Full Game", // 记住这个名字
+            "type": "cppbuild",
+            "command": "C:/msys64/ucrt64/bin/gcc.exe",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${workspaceFolder}/src/main.c",
+                "${workspaceFolder}/src/renderer.c",
+                "${workspaceFolder}/src/player.c",
+                "${workspaceFolder}/src/camera.c",
+                "${workspaceFolder}/src/tile.c",
+                "${workspaceFolder}/src/map.c",
+                "-o",
+                "${workspaceFolder}/out/game.exe",
+                "-I",
+                "${workspaceFolder}/src",
+                "-lSDL3",
+                "-lSDL3_image"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true // 设为 true，按 Ctrl+Shift+B 就会跑这个
+            }
+        }
+    ]
+}
