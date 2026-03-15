@@ -162,6 +162,41 @@ void RenderQueue_DrawAll(SDL_Renderer *renderer)
     }
 }
 
+void Renderer_DrawObject(SDL_Renderer *r, AssetManager *am, AssetID id, float wx, float wy, Camera *cam)
+{
+    // 1. 从资源管理器获取“只读数据定义” (Data-Driven)
+    const AssetDef *def = Asset_GetDef(am, id);
+    if (!def)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Renderer_DrawObject: Invalid AssetID %d", id);
+        return;
+    }
+
+    // 2. 获取实际的物理纹理
+    SDL_Texture *tex = Asset_GetTexture(am, def->texture_index);
+    if (!tex)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Renderer_DrawObject: Failed to get texture for AssetID %d", id);
+        return;
+    }
+
+    // 3. 核心：坐标转换逻辑 (这是 Renderer 的核心职责)
+    // 根据相机当前的物理位置和 Zoom 计算
+    float sx = WORLD_TO_SCREEN_X(wx, cam);
+    float sy = WORLD_TO_SCREEN_Y(wy, cam);
+
+    SDL_FRect dest;
+    dest.w = def->src_rect.w * cam->zoom;
+    dest.h = def->src_rect.h * cam->zoom;
+
+    // 4. 应用锚点偏移
+    dest.x = sx - (dest.w * def->pivotX);
+    dest.y = sy - (dest.h * def->pivotY);
+
+    // 5. 提交给 GPU
+    SDL_RenderTexture(r, tex, &def->src_rect, &dest);
+}
+
 /**
  * 销毁渲染队列
  * 通常在 SDL_AppQuit 或程序关闭时调用一次

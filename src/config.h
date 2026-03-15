@@ -10,6 +10,8 @@
 
 #define TITLE "SDL3 2.5D Engine"
 
+#define ASSET_DIR "assets/textures/"
+
 #define QUEUE_INITIAL_CAPACITY 1024
 
 // 窗口定义

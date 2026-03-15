@@ -8,6 +8,7 @@
 #include "tile.h"
 #include "map.h"
 #include "config.h"
+#include "asset_manager.h"
 
 // ---------------------------------------------------------
 // 1. 定义应用全局状态 (AppState)
@@ -17,6 +18,7 @@ typedef struct
     SDL_Window *window;
     SDL_Renderer *renderer;
     RenderQueue *renderQueue;
+    AssetManager *assetManager;
     Camera *camera;
     GameMap *map;
     Player player;
@@ -161,6 +163,11 @@ void SetupTileLibrary(AppState *as)
 
     // ID 0: 草地 - 虽然内容只有 32 高，但我们在 64x64 槽位里定义它
     Tile_Define(TILE_GRASS, 0, 0, SLOT, SLOT, PIVOT_X, 0, true);
+
+    // 注册草地地砖 (静态)
+    Asset_RegisterDef(as->assetManager,
+                      (AssetDef){.id = TILE_GRASS, .src_rect = {0, 0, SLOT, SLOT}, .pivotX = PIVOT_X, .pivotY = 0.0f, .is_animated = false},
+                      "atlas_tiles.png");
 }
 
 // ---------------------------------------------------------
@@ -170,14 +177,14 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
 {
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
-        SDL_Log("Error initializing SDL: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error initializing SDL: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
     AppState *as = (AppState *)SDL_calloc(1, sizeof(AppState));
     if (!as)
     {
-        SDL_Log("Error allocating memory for AppState");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Error allocating memory for AppState");
         return SDL_APP_FAILURE;
     }
 
@@ -185,13 +192,19 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
 
     if (!SDL_CreateWindowAndRenderer(TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, 0, &as->window, &as->renderer))
     {
-        SDL_Log("Window/Renderer Create Failed: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Window/Renderer Create Failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
     if (!Renderer_Init(as->renderer, QUEUE_INITIAL_CAPACITY))
     {
-        SDL_Log("Renderer_Init (Loading PNG) Failed!");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Renderer_Init (Loading PNG) Failed!");
+        return SDL_APP_FAILURE;
+    }
+
+    if (!(as->assetManager = Asset_Create(as->renderer)))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Asset Manager Creation Failed!");
         return SDL_APP_FAILURE;
     }
 
@@ -216,7 +229,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     as->heroShadowTexture = CreateHeroShadowAtlas(as->renderer); // 新的英雄阴影图集
     if (!as->heroShadowTexture)
     {
-        SDL_Log("Hero Shadow Atlas Texture Create Failed: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Hero Shadow Atlas Texture Create Failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
@@ -224,7 +237,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     as->heroTexture = CreateHeroAtlas(as->renderer); // 新的 8 方向英雄图集
     if (!as->heroTexture)
     {
-        SDL_Log("Hero Atlas Texture Create Failed: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Hero Atlas Texture Create Failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 

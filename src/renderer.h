@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <tile.h>
 #include <camera.h>
+#include <asset_manager.h>
 
 #define MAX_ENTITIES 1024
 #define ATLAS_PATH "assets/textures/tile_grass.png"
@@ -30,5 +31,6 @@ void Renderer_SubmitTile(const Camera *cam, TileTypeID tileID, float gx, float g
 void RenderQueue_Sort();
 void RenderQueue_DrawAll(SDL_Renderer *renderer);
 void RenderQueue_Destroy(RenderQueue *queue);
+void Renderer_DrawObject(SDL_Renderer *r, AssetManager *am, AssetID id, float wx, float wy, Camera *cam);
 
 #endif
