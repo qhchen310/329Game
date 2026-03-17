@@ -5,11 +5,12 @@ LDFLAGS = -lSDL3 -lSDL3_image
 
 # 源文件列表 (在这里添加所有新创建的 .c 文件)
 SRCS = ./src/main.c \
-       ./src/renderer.c \
+       ./src/render.c \
        ./src/player.c \
        ./src/camera.c \
        ./src/tile.c \
-       ./src/map.c
+       ./src/map.c \
+       ./src/asset_manager.c
 
 # 输出文件
 TARGET = ./out/sdl_game.exe
