@@ -26,7 +26,7 @@ typedef int TextureHandle;
 typedef struct
 {
     SDL_Texture *texture;
-    char path[256];
+    char path[512];
     int ref_count; // 引用计数，用于资源卸载
 } TextureResource;
 
@@ -59,6 +59,10 @@ typedef struct
 {
     SDL_Renderer *renderer;
 
+    // 启动时解析出来的资源目录（绝对路径，带结尾分隔符）。
+    // 不再依赖“当前工作目录”，双击 exe、从任意目录启动都能找到贴图。
+    char asset_root[512];
+
     TextureResource *texture_pool; // 纹理资源池
     int texture_count;             // 当前加载的纹理数量
     int texture_capacity;          // 纹理数组的容量
@@ -66,6 +70,8 @@ typedef struct
     AssetDef *defs;   // 逻辑素材定义数组
     int def_count;    // 当前定义的素材数量
     int def_capacity; // 定义数组的容量
+
+    int missing_assets; // 加载失败的素材数量（>0 说明资源没找齐）
 } AssetManager;
 
 AssetManager *Asset_Create(SDL_Renderer *renderer);

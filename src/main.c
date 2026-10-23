@@ -103,6 +103,18 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     // 生成并定义图集
     SetupTileLibrary(as);
 
+    // 资源没找齐就别装作没事：给出可见提示并退出，避免“黑屏但没有任何报错”
+    if (as->assetManager->missing_assets > 0)
+    {
+        char msg[512];
+        SDL_snprintf(msg, sizeof(msg),
+                     "有 %d 张贴图加载失败。\n\n当前资源目录：\n%s\n\n请把 assets 文件夹放在 exe 同级，或放到 exe 的上一级目录。",
+                     as->assetManager->missing_assets,
+                     as->assetManager->asset_root);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "资源加载失败", msg, as->window);
+        return SDL_APP_FAILURE;
+    }
+
     // 填充地图数据
     for (int i = 0; i < MAP_WIDTH * MAP_HEIGHT; i++)
         as->map->groundLayer[i] = TILE_GRASS; // 全是草地

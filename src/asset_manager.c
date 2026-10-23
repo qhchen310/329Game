@@ -4,6 +4,49 @@
 
 static TextureHandle GetOrLoadTexture(AssetManager *am, const char *path);
 
+// 目录是否存在
+static bool DirExists(const char *path)
+{
+    SDL_PathInfo info;
+    return SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_DIRECTORY;
+}
+
+/**
+ * 解析资源目录。
+ * 以前 ASSET_DIR 是相对“当前工作目录”的：双击 out/game.exe 时工作目录变成 out/，
+ * 所有贴图都会静默加载失败。这里按三种常见布局依次探测：
+ *   1. exe 同级          —— 发布时把 assets 和 exe 放在一起
+ *   2. exe 的上一级       —— 构建输出在 out/ 时的工程结构
+ *   3. 当前工作目录       —— 从仓库根目录运行 / 调试器指定了 cwd
+ * @param out 输出缓冲
+ * @param size 缓冲大小
+ */
+static void ResolveAssetRoot(char *out, size_t size)
+{
+    char base[512] = {0};
+    const char *raw = SDL_GetBasePath(); // 形如 C:\...\out\，可能为 NULL
+    if (raw)
+    {
+        SDL_strlcpy(base, raw, sizeof(base));
+        SDL_free((void *)raw); // SDL_GetBasePath 的返回值需要自己释放
+
+        size_t n = SDL_strlen(base);
+        if (n > 0 && base[n - 1] != '/' && base[n - 1] != '\\')
+            SDL_strlcat(base, "/", sizeof(base));
+    }
+
+    const char *prefixes[] = {"", "../"};
+    for (int i = 0; i < 2; i++)
+    {
+        SDL_snprintf(out, size, "%s%s%s", base, prefixes[i], ASSET_DIR);
+        if (DirExists(out))
+            return;
+    }
+
+    // 兜底：保持旧行为（相对工作目录），找不到就让调用方报错
+    SDL_snprintf(out, size, "%s", ASSET_DIR);
+}
+
 /**
  * 创建 AssetManager 实例，初始化纹理和素材定义的动态数组。
  * @param renderer SDL_Renderer 指针，用于后续纹理加载和渲染操作
@@ -18,6 +61,7 @@ AssetManager *Asset_Create(SDL_Renderer *renderer)
         return NULL;
     }
 
+    SDL_zerop(am);
     am->renderer = renderer;
     am->texture_capacity = TEXTURE_CAPACITY;
     am->texture_pool = SDL_calloc(am->texture_capacity, sizeof(TextureResource));
@@ -25,6 +69,14 @@ AssetManager *Asset_Create(SDL_Renderer *renderer)
     am->defs = SDL_calloc(am->def_capacity, sizeof(AssetDef));
     am->texture_count = 0;
     am->def_count = 0;
+    am->missing_assets = 0;
+
+    ResolveAssetRoot(am->asset_root, sizeof(am->asset_root));
+    SDL_Log("Asset root: %s", am->asset_root);
+    if (!DirExists(am->asset_root))
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                     "Asset root not found: %s (tried exe dir, parent, cwd)", am->asset_root);
+
     return am;
 }
 
@@ -120,15 +172,13 @@ SDL_Texture *Asset_GetRawTexture(AssetManager *am, TextureHandle h)
 /**
  * 私有函数：加载纹理并返回其在 AssetManager 中的索引。
  * @param am 指向 AssetManager 的指针
- * @param filename 纹理文件名（相对于 ASSET_DIR）
+ * @param filename 纹理文件名（相对于启动时解析出的资源目录 asset_root）
  * @return 纹理在 AssetManager 中的索引，如果加载失败则返回 -1
  */
 static TextureHandle GetOrLoadTexture(AssetManager *am, const char *filename)
 {
-    const int MAX_PATH = 256;
-    char path[MAX_PATH];
-    SDL_strlcpy(path, ASSET_DIR, sizeof(path));
-    SDL_strlcat(path, filename, sizeof(path));
+    char path[512];
+    SDL_snprintf(path, sizeof(path), "%s%s", am->asset_root, filename);
 
     // 1. 查找是否已存在
     for (int i = 0; i < am->texture_count; i++)
@@ -152,6 +202,7 @@ static TextureHandle GetOrLoadTexture(AssetManager *am, const char *filename)
     SDL_Texture *texture = IMG_LoadTexture(am->renderer, path);
     if (!texture)
     {
+        am->missing_assets++;
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Asset Error: Failed to load %s", path);
         return INVALID_HANDLE;
     }
@@ -159,7 +210,7 @@ static TextureHandle GetOrLoadTexture(AssetManager *am, const char *filename)
     // 4. 添加到纹理池
     int index = am->texture_count++;
     am->texture_pool[index].texture = texture;
-    SDL_strlcpy(am->texture_pool[index].path, path, 256);
+    SDL_strlcpy(am->texture_pool[index].path, path, sizeof(am->texture_pool[index].path));
     am->texture_pool[index].ref_count = 1;
 
     return index;
