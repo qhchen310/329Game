@@ -34,7 +34,7 @@ void SetupTileLibrary(AppState *as)
     const float PIVOT_Y = 0.0f;
 
     // 1. 注册原来的静态草地地砖
-    Tile_Define(TILE_GRASS, 0.0f, 0.0f, SLOT, SLOT, PIVOT_X, PIVOT_Y, true);
+    Tile_Define(TILE_GRASS, 0.0f, 0.0f, SLOT, SLOT, PIVOT_X, PIVOT_Y);
     Asset_RegisterStatic(as->assetManager, (AssetID)TILE_GRASS, "tile_grass_6.png", 0, 0, SLOT, SLOT, PIVOT_X, PIVOT_Y);
 
     // 2. 注册新的高清英雄素材（单张静态图）
@@ -77,6 +77,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
         return SDL_APP_FAILURE;
     }
 
+    // 开垂直同步：把循环锁在刷新率上，别让 400 次绘制空转烧一个核
+    if (!SDL_SetRenderVSync(as->renderer, 1))
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "VSync 开启失败: %s", SDL_GetError());
+
     Render_Init(QUEUE_INITIAL_CAPACITY);
 
     if (!(as->assetManager = Asset_Create(as->renderer)))
@@ -98,7 +102,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     Camera_Snap(as->camera);
 
     // 初始化时间戳
-    as->lastTime = SDL_GetTicks();
+    as->lastTime = SDL_GetTicksNS();
 
     // 生成并定义图集
     SetupTileLibrary(as);
@@ -133,9 +137,14 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 
     AppState *as = (AppState *)appstate;
 
-    uint64_t now = SDL_GetTicks();
-    float deltaTime = (now - as->lastTime) / 1000.0f;
+    uint64_t now = SDL_GetTicksNS();
+    float deltaTime = (now - as->lastTime) / 1000000000.0f;
     as->lastTime = now;
+
+    // 卡顿保护：一帧最多走 MAX_DELTA_TIME，避免大步长穿墙/相机瞬移
+    if (deltaTime > MAX_DELTA_TIME)
+        deltaTime = MAX_DELTA_TIME;
+
     total_time += deltaTime; // deltaTime 是上一帧消耗的秒数
 
     // 更新玩家逻辑 (包含归一化、方向判定)
@@ -155,30 +164,29 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     // 开始新的渲染帧
     Render_Begin(as->renderer);
 
-    // 1. 渲染地表层 (增加安全检查)
+    // 1. 渲染地表层
     for (int y = 0; y < as->map->height; y++)
     {
         for (int x = 0; x < as->map->width; x++)
         {
             int id = as->map->groundLayer[Map_GetIndex(x, y, as->map->width)];
 
-            // --- 核心修正：检查 ID 范围和纹理是否存在 ---
-            if (id < 0 || id >= TILE_COUNT)
+            // 负数 = 空；素材是否存在交给 Render_Tile_Push 判断
+            if (id < 0)
                 continue;
 
             Render_Tile_Push(as->assetManager, as->camera, (AssetID)id, x, y, LAYER_GROUND);
         }
     }
 
-    // 2. 收集物体层 (同样增加检查)
+    // 2. 收集物体层（和地表层同一套 ID：AssetID，-1 = 空）
     for (int y = 0; y < as->map->height; y++)
     {
         for (int x = 0; x < as->map->width; x++)
         {
             int id = as->map->objectLayer[Map_GetIndex(x, y, as->map->width)];
 
-            // --- 核心修正：检查 ID 范围和纹理是否存在 ---
-            if (id < 0 || id >= TILE_COUNT)
+            if (id < 0)
                 continue;
 
             Render_Tile_Push(as->assetManager, as->camera, (AssetID)id, x, y, LAYER_OBJECT);

@@ -11,7 +11,7 @@ static TileDef g_tileLibrary[TILE_COUNT];
  * px, py: 锚点 (通常 32, 64)
  */
 void Tile_Define(TileTypeID id, float sx, float sy, float sw, float sh,
-                 float px, float py, bool walkable)
+                 float px, float py)
 {
     if (id < 0 || id >= TILE_COUNT)
     {
@@ -28,8 +28,6 @@ void Tile_Define(TileTypeID id, float sx, float sy, float sw, float sh,
     // 设置锚点偏移
     def->pivotX = px;
     def->pivotY = py;
-    // 是否可行走
-    def->isWalkable = walkable;
 }
 
 /**

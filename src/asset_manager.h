@@ -46,6 +46,11 @@ typedef struct
     // 它在投影前参与运算，所以相机缩放时偏移会一起缩放，不会脱节。
     float anchorX, anchorY;
 
+    // --- 物理属性 ---
+    // true = 阻挡通行。物体层用它推导碰撞，不再有第二套判断标准。
+    // 默认 false（可走），树/墙这类记得 Asset_SetSolid(am, id, true)。
+    bool solid;
+
     // --- 动画核心属性 ---
     bool is_animated;     // 是否为动画素材
     int frame_count;      // 总帧数
@@ -76,7 +81,8 @@ typedef struct
 
 AssetManager *Asset_Create(SDL_Renderer *renderer);
 void Asset_Register(AssetManager *am, AssetID id, const char *filename, float x, float y, float w, float h, float px, float py, float ax, float ay, int frame_count, float frame_duration, int frames_per_row);
-const AssetDef *Asset_GetDef(AssetManager *am, AssetID id);
+const AssetDef *Asset_GetDef(const AssetManager *am, AssetID id);
+void Asset_SetSolid(AssetManager *am, AssetID id, bool solid);
 SDL_Texture *Asset_GetRawTexture(AssetManager *am, TextureHandle h);
 void Asset_Destroy(AssetManager *am);
 

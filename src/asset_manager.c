@@ -127,6 +127,7 @@ void Asset_Register(AssetManager *am, AssetID id, const char *filename,
     d->pivotY = py;
     d->anchorX = ax;
     d->anchorY = ay;
+    d->solid = false; // 默认不挡路，需要阻挡的素材注册后调 Asset_SetSolid
 
     // 3. 动画逻辑处理
     d->is_animated = (frame_count > 1);
@@ -145,7 +146,7 @@ void Asset_Register(AssetManager *am, AssetID id, const char *filename,
  * @param id 要查询的 AssetID
  * @return 指向 AssetDef 的指针，如果未找到则返回 NULL
  */
-const AssetDef *Asset_GetDef(AssetManager *am, AssetID id)
+const AssetDef *Asset_GetDef(const AssetManager *am, AssetID id)
 {
     for (int i = 0; i < am->def_count; i++)
     {
@@ -153,6 +154,26 @@ const AssetDef *Asset_GetDef(AssetManager *am, AssetID id)
             return &am->defs[i];
     }
     return NULL;
+}
+
+/**
+ * 设置素材的物理属性：是否阻挡通行。
+ * 碰撞的唯一来源就是这里，物体层不再靠 ID 大小猜“这是不是墙”。
+ * @param am 资源管理器
+ * @param id 素材 ID
+ * @param solid true = 不可通行
+ */
+void Asset_SetSolid(AssetManager *am, AssetID id, bool solid)
+{
+    for (int i = 0; i < am->def_count; i++)
+    {
+        if (am->defs[i].id == id)
+        {
+            am->defs[i].solid = solid;
+            return;
+        }
+    }
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Asset_SetSolid: 未注册的 AssetID %d", id);
 }
 
 /**

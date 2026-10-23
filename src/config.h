@@ -12,6 +12,10 @@
 
 #define QUEUE_INITIAL_CAPACITY 1024
 
+// 单帧最大步进（秒）。卡顿/拖窗口/断点恢复时，dt 可能是几百毫秒，
+// 直接拿去算位移会一帧穿过整堵墙，所以在这里封顶。
+#define MAX_DELTA_TIME (1.0f / 30.0f)
+
 // 窗口定义
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720

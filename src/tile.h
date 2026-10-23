@@ -12,17 +12,17 @@ typedef enum
 } TileTypeID;
 
 // 1. 瓦片类型定义（存储在图集中的信息）
+// 注意：碰撞不再由这里判断，统一看 AssetDef.solid（在地图放置物体时写入碰撞层）
 typedef struct
 {
     int id;
     SDL_FRect srcRect; // 在图集里的像素矩形（x, y, w, h）
     float pivotX;      // 重心/锚点 X
     float pivotY;      // 重心/锚点 Y
-    bool isWalkable;   // 物理属性：是否可行走
 } TileDef;
 
 // 3. 瓦片定义函数和获取函数
-void Tile_Define(TileTypeID id, float sx, float sy, float sw, float sh, float px, float py, bool walkable);
+void Tile_Define(TileTypeID id, float sx, float sy, float sw, float sh, float px, float py);
 const TileDef *Tile_GetDef(TileTypeID id);
 
 #endif
