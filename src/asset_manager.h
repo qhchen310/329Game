@@ -8,12 +8,19 @@ typedef int AssetID;
 typedef int TextureHandle;
 
 #define INVALID_HANDLE -1
+
+// 注册静态素材（默认锚定在格子顶点，适合地砖）
 #define Asset_RegisterStatic(am, id, file, x, y, w, h, px, py) \
-    Asset_Register(am, id, file, x, y, w, h, px, py, 1, 0.0f, 1)
+    Asset_Register(am, id, file, x, y, w, h, px, py, 0.0f, 0.0f, 1, 0.0f, 1)
+
+// 注册整张图的静态素材，并显式声明它在格子里的锚点 (ax, ay)，单位是“格”。
+// 例：地砖 (0,0) 锚在菱形顶点；树/建筑 (0.5,0.5) 锚在格子中心。
+#define Asset_RegisterCell(am, id, file, w, h, px, py, ax, ay) \
+    Asset_Register(am, id, file, 0, 0, w, h, px, py, ax, ay, 1, 0.0f, 1)
 
 // 注册简单单行动画
 #define Asset_RegisterAnim(am, id, file, x, y, w, h, px, py, count, dur) \
-    Asset_Register(am, id, file, x, y, w, h, px, py, count, dur, count)
+    Asset_Register(am, id, file, x, y, w, h, px, py, 0.0f, 0.0f, count, dur, count)
 
 // 原始纹理资源
 typedef struct
@@ -30,7 +37,14 @@ typedef struct
     AssetID id;           // 逻辑 ID
     TextureHandle tex_h;  // 指向纹理池的索引
     SDL_FRect src_rect;   // 在图集中的坐标
-    float pivotX, pivotY; // 锚点 (0.0~1.0)
+    float pivotX, pivotY; // 图像内的锚点 (0.0~1.0)：素材里“贴地”的那个点
+
+    // --- 格子锚点 ---
+    // 素材锚点相对格子起点的偏移，单位是“格”（不是像素）。
+    // (0,0)   = 菱形顶点，地砖就是这种；直接铺满自己的格子。
+    // (0.5,0.5) = 格子中心，站立的物体/角色用这种，脚踩在格子正中间。
+    // 它在投影前参与运算，所以相机缩放时偏移会一起缩放，不会脱节。
+    float anchorX, anchorY;
 
     // --- 动画核心属性 ---
     bool is_animated;     // 是否为动画素材
@@ -55,7 +69,7 @@ typedef struct
 } AssetManager;
 
 AssetManager *Asset_Create(SDL_Renderer *renderer);
-void Asset_Register(AssetManager *am, AssetID id, const char *filename, float x, float y, float w, float h, float px, float py, int frame_count, float frame_duration, int frames_per_row);
+void Asset_Register(AssetManager *am, AssetID id, const char *filename, float x, float y, float w, float h, float px, float py, float ax, float ay, int frame_count, float frame_duration, int frames_per_row);
 const AssetDef *Asset_GetDef(AssetManager *am, AssetID id);
 SDL_Texture *Asset_GetRawTexture(AssetManager *am, TextureHandle h);
 void Asset_Destroy(AssetManager *am);

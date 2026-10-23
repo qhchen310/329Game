@@ -46,9 +46,35 @@ int Map_GetSafeObject(const GameMap *map, int x, int y)
 {
     if (x < 0 || x >= map->width || y < 0 || y >= map->height)
     {
-        return -1; // 地图外视为障碍物
+        return -1; // 越界
     }
     return map->objectLayer[Map_GetIndex(x, y, map->width)];
+}
+
+/**
+ * 通行判定：这个格子能不能站人。
+ * - 地图外一律阻挡（越界不再靠“返回 -1”暗示，边界在这里说死）
+ * - 空格（-1）可通行
+ * - 有东西的格子查 TileDef.isWalkable
+ * - 还没登记过 TileDef 的 ID 保守当作障碍，避免静默穿模
+ * @param map 地图
+ * @param x, y 逻辑格坐标
+ * @return true 表示不可通行
+ */
+bool Map_IsBlocked(const GameMap *map, int x, int y)
+{
+    if (x < 0 || x >= map->width || y < 0 || y >= map->height)
+        return true; // 地图外 = 墙
+
+    int id = map->objectLayer[Map_GetIndex(x, y, map->width)];
+    if (id < 0)
+        return false; // 空格
+
+    if (id >= TILE_COUNT)
+        return true; // 未登记的类型，先按实体处理
+
+    const TileDef *def = Tile_GetDef((TileTypeID)id);
+    return !def || !def->isWalkable;
 }
 
 /**

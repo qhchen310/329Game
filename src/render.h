@@ -26,11 +26,16 @@ typedef struct
     float angle;       // 旋转角度（如果需要）
     int z_index;       // Z-Index 用于渲染排序，数值越大越靠前
     SDL_FlipMode flip; // 水平/垂直翻转
+
+    SDL_FRect custom_src; // 可选的自定义切片区域（覆盖 AssetDef 中的 src_rect），用于特殊效果或动态切割
+    bool use_custom_src;  // 是否使用自定义切片区域
 } RenderCommand;
 
 void Render_Init(int capacity);
 void Render_Begin(SDL_Renderer *renderer);
 void Render_Object_Push(AssetID id, float x, float y, float scale, float angle, int z_index, SDL_FlipMode flip);
+void Render_Tile_Push(AssetManager *am, const Camera *cam, AssetID id, int cx, int cy, int z_index);
+void Render_Entity_Push(AssetManager *am, AssetID id, float x, float y, float scale, int dir, int current_frame, int z_index);
 void Render_Flush(AssetManager *am, SDL_Renderer *renderer, float total_time);
 void Render_Destroy(void);
 

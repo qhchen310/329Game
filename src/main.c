@@ -21,153 +21,36 @@ typedef struct
     Camera *camera;
     GameMap *map;
     Player player;
-    SDL_Texture *heroShadowTexture; // 阴影图集（如果需要）
-    SDL_Texture *heroTexture;       // 英雄 8 方向图集
     uint64_t lastTime;
 } AppState;
 
 // ---------------------------------------------------------
-// 2. 模拟英雄图集定义 (手动指定像素坐标和重心)
-// ---------------------------------------------------------
-SDL_Texture *CreateHeroAtlas(SDL_Renderer *renderer)
-{
-    // 8 行 (方向) x 4 列 (动画帧)，每格 64x64
-    SDL_Surface *surf = SDL_CreateSurface(256, 512, SDL_PIXELFORMAT_RGBA8888);
-    SDL_FillSurfaceRect(surf, NULL, 0x00000000); // 透明底
-
-    // 循环画出 8 个方向的“英雄”占位图
-    for (int dir = 0; dir < DIR_NONE; dir++)
-    {
-        for (int frame = 0; frame < 4; frame++)
-        {
-            // 计算当前帧在图集里的绝对起始位置
-            int slotX = frame * TILE_WIDTH;
-            int slotY = dir * TILE_HEIGHT;
-
-            // 1. 画身体 (所有的英雄部位都限制在各自的 slot 内部)
-            // 身体放在槽位下半部分，靠近脚底 (32, 64)
-            SDL_Rect body = {slotX + 16, slotY + 24, 32, 32};
-            SDL_FillSurfaceRect(surf, &body, SDL_MapRGB(SDL_GetPixelFormatDetails(surf->format), NULL, 50 + dir * 20, 100, 200));
-
-            // 2. 画“朝向点”（眼睛/头灯）
-            // 我们通过偏移来模拟 8 个方向的视觉差异
-            int eyeX = slotX + 28;
-            int eyeY = slotY + 28;
-
-            // 根据方向枚举微调眼睛位置，确保它不出 64x64 范围
-            if (dir == DIR_N)
-                eyeY -= 10; // 北 (DIR_N)
-            if (dir == DIR_S)
-                eyeY += 10; // 南 (DIR_S)
-            if (dir == DIR_E)
-                eyeX += 10; // 东 (DIR_E)
-            if (dir == DIR_W)
-                eyeX -= 10; // 西 (DIR_W)
-
-            SDL_Rect eye = {eyeX, eyeY, 8, 8};
-            SDL_FillSurfaceRect(surf, &eye, SDL_MapRGB(SDL_GetPixelFormatDetails(surf->format), NULL, 255, 255, 0));
-        }
-    }
-    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-    SDL_DestroySurface(surf);
-    return tex;
-}
-
-SDL_Texture *CreateHeroShadowAtlas(SDL_Renderer *renderer)
-{
-    int atlasH = DIR_NONE * TILE_HEIGHT;
-    SDL_Surface *surf = SDL_CreateSurface(256, atlasH, SDL_PIXELFORMAT_RGBA8888);
-    SDL_FillSurfaceRect(surf, NULL, 0x00000000);
-
-    for (int dir = 0; dir < DIR_NONE; dir++)
-    {
-        for (int frame = 0; frame < 4; frame++)
-        {
-            int slotX = frame * TILE_WIDTH;
-            int slotY = dir * TILE_HEIGHT;
-
-            // 基础影子属性
-            int sw = 40; // 宽度
-            int sh = 20; // 高度
-            int ox = 32; // 相对于 slot 的中心 X
-            int oy = 56; // 相对于 slot 的中心 Y (脚底位置)
-
-            // --- 核心：8方向几何适配逻辑 ---
-            // 假设光源在“西北方向”
-            switch (dir)
-            {
-            case DIR_N:
-                sh = 12;
-                oy = 52;
-                ox = 32;
-                break; // 正北：影子缩短在身后
-            case DIR_S:
-                sh = 28;
-                oy = 60;
-                ox = 32;
-                break; // 正南：影子拉长在身前
-            case DIR_E:
-                sw = 45;
-                sh = 18;
-                ox = 38;
-                break; // 正东：影子向右侧斜拉
-            case DIR_W:
-                sw = 35;
-                sh = 18;
-                ox = 26;
-                break; // 正西：影子向左侧缩进
-            case DIR_NE:
-                sw = 42;
-                sh = 14;
-                ox = 36;
-                oy = 54;
-                break;
-            case DIR_NW:
-                sw = 30;
-                sh = 12;
-                ox = 30;
-                oy = 52;
-                break;
-            case DIR_SE:
-                sw = 45;
-                sh = 24;
-                ox = 36;
-                oy = 58;
-                break;
-            case DIR_SW:
-                sw = 35;
-                sh = 22;
-                ox = 28;
-                oy = 58;
-                break;
-            }
-
-            // 绘制半透明阴影（工业标准：使用黑色且 Alpha 值约为 100）
-            SDL_Rect sRect = {slotX + ox - sw / 2, slotY + oy - sh / 2, sw, sh};
-            SDL_FillSurfaceRect(surf, &sRect, SDL_MapRGBA(SDL_GetPixelFormatDetails(surf->format), NULL, 0, 0, 0, 110));
-        }
-    }
-    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-    SDL_DestroySurface(surf);
-    return tex;
-}
-
-// ---------------------------------------------------------
-// 3. 配置地砖库 (统一重心 Pivot)
+// 2. 定义函数原型
 // ---------------------------------------------------------
 void SetupTileLibrary(AppState *as)
 {
-    const float SLOT = TILE_WIDTH;
-    const float PIVOT_X = 0.5f; // 宽度一半
-    const float PIVOT_Y = 0.0f; // 高度底部
+    const float SLOT = TILE_WIDTH; // 128.0f
+    const float PIVOT_X = 0.5f;
+    const float PIVOT_Y = 0.0f;
 
-    // ID 0: 草地 - 虽然内容只有 32 高，但我们在 64x64 槽位里定义它
-    Tile_Define(TILE_GRASS, 0, 0, SLOT, SLOT, PIVOT_X, PIVOT_Y, true);
+    // 1. 注册原来的静态草地地砖
+    Tile_Define(TILE_GRASS, 0.0f, 0.0f, SLOT, SLOT, PIVOT_X, PIVOT_Y, true);
+    Asset_RegisterStatic(as->assetManager, (AssetID)TILE_GRASS, "tile_grass_6.png", 0, 0, SLOT, SLOT, PIVOT_X, PIVOT_Y);
 
-    // 注册草地地砖 (静态)
-    Asset_RegisterStatic(as->assetManager, TILE_GRASS, "tile_grass.png", 0, 0, SLOT, SLOT, PIVOT_X, PIVOT_Y);
+    // 2. 注册新的高清英雄素材（单张静态图）
+    Asset_Register(
+        as->assetManager,
+        100,             // AssetID
+        "player_v1.png", // 对应的文件名（确保放到了你的 ASSET_DIR 目录下）
+        0.0f, 0.0f,      // 图集中的起点 (x, y)
+        SLOT, SLOT,      // 逻辑裁剪与原始宽高 (w, h)保持 1:1
+        0.5f, 0.9375f,   // 灵魂锚点：水平居中，垂直靠脚底
+        0.0f, 0.0f,      // 格子锚点：角色不用它（走 Entity_Push，用连续坐标）
+        1,               // frame_count: 目前是单张静态图，传入 1
+        0.0f,            // frame_duration: 无动画，传 0.0f
+        1                // frames_per_row: 1 行
+    );
 }
-
 // ---------------------------------------------------------
 // 4. SDL_AppInit
 // ---------------------------------------------------------
@@ -220,21 +103,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     // 生成并定义图集
     SetupTileLibrary(as);
 
-    as->heroShadowTexture = CreateHeroShadowAtlas(as->renderer); // 新的英雄阴影图集
-    if (!as->heroShadowTexture)
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Hero Shadow Atlas Texture Create Failed: %s", SDL_GetError());
-        return SDL_APP_FAILURE;
-    }
-
-    // 生成英雄图集（8 方向，每个方向 4 帧动画）
-    as->heroTexture = CreateHeroAtlas(as->renderer); // 新的 8 方向英雄图集
-    if (!as->heroTexture)
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Hero Atlas Texture Create Failed: %s", SDL_GetError());
-        return SDL_APP_FAILURE;
-    }
-
     // 填充地图数据
     for (int i = 0; i < MAP_WIDTH * MAP_HEIGHT; i++)
         as->map->groundLayer[i] = TILE_GRASS; // 全是草地
@@ -286,8 +154,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
             if (id < 0 || id >= TILE_COUNT)
                 continue;
 
-            SDL_FPoint screenPos = Camera_GridToScreen(as->camera, x, y); // 计算屏幕坐标
-            Render_Object_Push((AssetID)id, screenPos.x, screenPos.y, 1.0f, 0.0f, LAYER_GROUND, SDL_FLIP_NONE);
+            Render_Tile_Push(as->assetManager, as->camera, (AssetID)id, x, y, LAYER_GROUND);
         }
     }
 
@@ -302,16 +169,24 @@ SDL_AppResult SDL_AppIterate(void *appstate)
             if (id < 0 || id >= TILE_COUNT)
                 continue;
 
-            Render_Object_Push((AssetID)id, x * TILE_WIDTH, y * TILE_HEIGHT, 1.0f, 0.0f, LAYER_OBJECT, SDL_FLIP_NONE);
+            Render_Tile_Push(as->assetManager, as->camera, (AssetID)id, x, y, LAYER_OBJECT);
         }
     }
 
-    // 3.渲染玩家 (假设玩家图片 32x64, 重心在脚底 16, 64)
-    // SDL_FRect heroSrc = {(float)as->player.currentFrame * 64.0f, (float)as->player.dir * 64.0f, 64.0f, 64.0f};
-    // SDL_FPoint pPos = Camera_GridToScreen(as->camera, as->player.gridX, as->player.gridY);
-    // SDL_FRect pDst = {pPos.x - 32, pPos.y - 64, 64, 64}; // 使用统一重心
-    // // Renderer_Submit(as->renderQueue, as->heroShadowTexture, heroSrc, pDst, as->player.gridX + as->player.gridY - 0.01f);
-    // Renderer_Submit(as->heroTexture, heroSrc, pDst, as->player.gridX + as->player.gridY);
+    // 使用新的 Entity 推送函数，自动处理动画帧和图集切割
+    // 这里我们还加了一个呼吸动画，使用正弦函数让玩家稍微放大缩小，增加生命力
+    SDL_FPoint pPos = Camera_GridToScreen(as->camera, as->player.gridX, as->player.gridY);
+
+    Render_Entity_Push(
+        as->assetManager,
+        100,         // 资产 ID
+        pPos.x,      // 屏幕 X
+        pPos.y,      // 屏幕 Y
+        1,           // 把算好的 0.25+ 呼吸直接传进去！
+        0,           // dir: 静态图传 0
+        0,           // current_frame: 静态图传 0
+        LAYER_OBJECT // 物体层
+    );
 
     // 4. 执行排序渲染
     Render_Flush(as->assetManager, as->renderer, total_time);

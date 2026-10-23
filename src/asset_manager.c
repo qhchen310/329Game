@@ -38,8 +38,10 @@ AssetManager *Asset_Create(SDL_Renderer *renderer)
  * @param y 素材在图集中的 Y 坐标
  * @param w 素材在图集中的宽度
  * @param h 素材在图集中的高度
- * @param px 素材的锚点 X 坐标（0.0~1.0）
+ * @param px 素材的锚点 X 坐标（0.0~1.0），即素材里“贴地”的那个点
  * @param py 素材的锚点 Y 坐标（0.0~1.0）
+ * @param ax 格子内锚点偏移 X（单位：格，(0,0) 是菱形顶点，(0.5,0.5) 是格子中心）
+ * @param ay 格子内锚点偏移 Y（单位：格）
  * @param frame_count 如果素材是动画，帧数；如果不是动画，传 1
  * @param frame_duration 每帧持续时间（单位: 秒，例如 0.1
  * @param frames_per_row 图集中每一行的帧数，用于自动计算动画帧的 UV 偏移
@@ -48,6 +50,7 @@ AssetManager *Asset_Create(SDL_Renderer *renderer)
 void Asset_Register(AssetManager *am, AssetID id, const char *filename,
                     float x, float y, float w, float h,
                     float px, float py,
+                    float ax, float ay,
                     int frame_count, float frame_duration, int frames_per_row)
 {
     if (am->def_count >= am->def_capacity)
@@ -70,6 +73,8 @@ void Asset_Register(AssetManager *am, AssetID id, const char *filename,
     d->src_rect = (SDL_FRect){x, y, w, h};
     d->pivotX = px;
     d->pivotY = py;
+    d->anchorX = ax;
+    d->anchorY = ay;
 
     // 3. 动画逻辑处理
     d->is_animated = (frame_count > 1);

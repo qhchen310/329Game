@@ -89,10 +89,10 @@ void Player_Update(Player *self, GameMap *map, float dt, const bool *keys)
         int cellY_side1 = (int)floorf(self->gridY - 0.2f);
         int cellY_side2 = (int)floorf(self->gridY + 0.2f);
 
-        if (Map_GetSafeObject(map, cellX, cellY_side1) == 0 &&
-            Map_GetSafeObject(map, cellX, cellY_side2) == 0)
+        if (!Map_IsBlocked(map, cellX, cellY_side1) &&
+            !Map_IsBlocked(map, cellX, cellY_side2))
         {
-            self->gridX = nextGridX; // X轴通路，更新坐标
+            self->gridX = nextGridX;
         }
 
         // --- 2. Y 轴方向检测 ---
@@ -104,8 +104,8 @@ void Player_Update(Player *self, GameMap *map, float dt, const bool *keys)
         int cellX_side1 = (int)floorf(self->gridX - 0.2f);
         int cellX_side2 = (int)floorf(self->gridX + 0.2f);
 
-        if (Map_GetSafeObject(map, cellX_side1, cellY) == 0 &&
-            Map_GetSafeObject(map, cellX_side2, cellY) == 0)
+        if (!Map_IsBlocked(map, cellX_side1, cellY) &&
+            !Map_IsBlocked(map, cellX_side2, cellY))
         {
             self->gridY = nextGridY; // Y轴通路，更新坐标
         }

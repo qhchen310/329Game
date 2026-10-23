@@ -17,7 +17,8 @@ typedef struct
 // 4.地图相关函数
 int Map_GetIndex(int x, int y, int width);
 GameMap *Map_Create(int w, int h);                                                                    // 辅助函数：坐标转索引
-int Map_GetSafeObject(const GameMap *map, int x, int y);                                              // 安全获取物体层数据
+int Map_GetSafeObject(const GameMap *map, int x, int y);                                              // 安全获取物体层数据（越界返回 -1）
+bool Map_IsBlocked(const GameMap *map, int x, int y);                                                 // 通行判定：越界或不可行走
 void Map_PlaceObject(GameMap *map, int startX, int startY, int width, int height, TileTypeID tileID); // 放置多格物体
 void Map_Destroy(GameMap *self);
 
