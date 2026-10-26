@@ -37,13 +37,13 @@ void SetupTileLibrary(AppState *as)
     Tile_Define(TILE_GRASS, 0.0f, 0.0f, SLOT, SLOT, PIVOT_X, PIVOT_Y);
     Asset_RegisterStatic(as->assetManager, (AssetID)TILE_GRASS, "tile_grass_6.png", 0, 0, SLOT, SLOT, PIVOT_X, PIVOT_Y);
 
-    // 2. 注册新的高清英雄素材（单张静态图）
+    // 2. 注册新的高清英雄素材（单张静态图，源图 256×256）
     Asset_Register(
         as->assetManager,
         100,             // AssetID
         "player_v1.png", // 对应的文件名（确保放到了你的 ASSET_DIR 目录下）
         0.0f, 0.0f,      // 图集中的起点 (x, y)
-        SLOT, SLOT,      // 逻辑裁剪与原始宽高 (w, h)保持 1:1
+        256.0f, 256.0f,  // 这一帧在纹理里的真实像素范围（和图片尺寸一致）
         0.5f, 0.9375f,   // 灵魂锚点：水平居中，垂直靠脚底
         0.0f, 0.0f,      // 格子锚点：角色不用它（走 Entity_Push，用连续坐标）
         1,               // frame_count: 目前是单张静态图，传入 1
@@ -162,7 +162,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     Camera_Update(as->camera, deltaTime);
 
     // 开始新的渲染帧
-    Render_Begin(as->renderer);
+    Render_Begin(as->renderer, as->camera->zoom);
 
     // 1. 渲染地表层
     for (int y = 0; y < as->map->height; y++)
@@ -193,8 +193,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         }
     }
 
-    // 使用新的 Entity 推送函数，自动处理动画帧和图集切割
-    // 这里我们还加了一个呼吸动画，使用正弦函数让玩家稍微放大缩小，增加生命力
+    // 推送角色：源图是 256×256 的高清图，按一半尺寸画（128×128）
     SDL_FPoint pPos = Camera_GridToScreen(as->camera, as->player.gridX, as->player.gridY);
 
     Render_Entity_Push(
@@ -202,7 +201,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         100,         // 资产 ID
         pPos.x,      // 屏幕 X
         pPos.y,      // 屏幕 Y
-        1,           // 把算好的 0.25+ 呼吸直接传进去！
+        0.5f,        // 源图 256 按一半绘制
         0,           // dir: 静态图传 0
         0,           // current_frame: 静态图传 0
         LAYER_OBJECT // 物体层

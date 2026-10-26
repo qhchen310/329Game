@@ -7,6 +7,7 @@
 static RenderCommand *queue = NULL;
 static size_t queue_capacity = 0;
 static size_t queue_size = 0;
+static float frame_zoom = 1.0f; // 本帧的相机缩放，Render_Begin 时设置
 
 static int CompareCommands(const void *a, const void *b);
 
@@ -58,13 +59,16 @@ void Render_Init(int capacity)
 /**
  * 开始一个新的渲染帧，清空渲染队列
  * @param renderer SDL_Renderer 对象
+ * @param zoom 本帧的相机缩放。位置已经在 Camera_GridToScreen 里乘过 zoom 了，
+ *             这里拿它把绘制尺寸也乘上，两者才不会脱节。
  * @return void
  */
-void Render_Begin(SDL_Renderer *renderer)
+void Render_Begin(SDL_Renderer *renderer, float zoom)
 {
     SDL_SetRenderDrawColor(renderer, 20, 20, 25, 255);
     SDL_RenderClear(renderer);
     queue_size = 0; // 重置队列
+    frame_zoom = (zoom > 0.0f) ? zoom : 1.0f;
 }
 
 /**
@@ -119,14 +123,14 @@ void Render_Tile_Push(AssetManager *am, const Camera *cam, AssetID id, int cx, i
  * 将一个实体渲染命令推入队列，自动计算动画帧的切片区域
  * @param am 资源管理器
  * @param id 素材 ID
- * @param x 世界坐标 X（像素）
- * @param y 世界坐标 Y（像素）
- * @param scale 缩放倍率
- * @param dir 方向枚举值（0~7），用于计算动画帧
- * @param current_frame 当前动画帧索引（0~帧数-1）
+ * @param x,y 屏幕坐标（锚点）
+ * @param scale 缩放倍率（和素材定义里的源尺寸相乘得到实际绘制尺寸）
+ * @param dir 方向枚举值，用作图集的行号
+ * @param current_frame 当前动画帧，用作图集的列号
  * @param z_index Z-Index 用于渲染排序，数值越大越靠前
  * @return void
- * @note 这个函数是专门为角色等多方向动画设计的，它会根据传入的方向和当前帧自动计算出正确的切片区域，并将其封装到渲染命令中，极大简化了业务层的渲染调用！
+ * @note src_rect 就是“这一帧在纹理里的真实像素范围”，所以图集带边距/留白也能切对；
+ *       帧与帧之间按 src_rect 的宽高紧密排列。绘制尺寸 = src_rect 宽高 × scale。
  */
 void Render_Entity_Push(AssetManager *am, AssetID id, float x, float y, float scale, int dir, int current_frame, int z_index)
 {
@@ -137,37 +141,22 @@ void Render_Entity_Push(AssetManager *am, AssetID id, float x, float y, float sc
     if (!def)
         return;
 
-    SDL_Texture *tex = Asset_GetRawTexture(am, def->tex_h);
-    if (!tex)
-        return;
+    // 直接使用注册时声明的源矩形，不再用“纹理尺寸 / 逻辑尺寸”反推比例。
+    // 旧写法只对“整张图恰好等于帧网格、且从 (0,0) 开始”成立，带偏移或留白就会算歪。
+    SDL_FRect src = def->src_rect;
 
-    // 1. 获取图片真实的物理尺寸（例如 256）
-    float texW, texH;
-    SDL_GetTextureSize(tex, &texW, &texH);
-
-    // 2. 计算图集坐标和物理像素之间的比例，考虑动画帧的行列布局
-    // 例如：如果你的图集是 256x512，单帧逻辑尺寸是 64x64，且每行有 4 帧，那么 ratioX = 256 / (64 * 4) = 1.0，ratioY = 512 / (64 * 2) = 4.0
-    float ratioX = texW / (def->src_rect.w * (def->is_animated ? def->frames_per_row : 1));
-    float ratioY = texH / (def->src_rect.h * (def->is_animated ? (def->frame_count / def->frames_per_row) : 1));
-
-    // 3. 基础物理原图切片大小
-    SDL_FRect phys_src = {
-        def->src_rect.x * ratioX,
-        def->src_rect.y * ratioY,
-        def->src_rect.w * ratioX,
-        def->src_rect.h * ratioY};
-
-    // 4. 如果是多方向帧动画，在这里根据业务层传来的 dir 和 frame 算偏移
+    // 多方向图集：列来自 current_frame，行来自 dir，步长就是一帧的宽高
     if (def->is_animated)
     {
-        int col = current_frame % def->frames_per_row;
-        int row = dir; // 垂直方向直接对应你的 Player 8方向枚举值 (0~7)
+        int cols = (def->frames_per_row > 0) ? def->frames_per_row : 1;
+        int col = current_frame % cols;
+        int row = dir;
 
-        phys_src.x += col * phys_src.w;
-        phys_src.y += row * phys_src.h;
+        src.x += col * def->src_rect.w;
+        src.y += row * def->src_rect.h;
     }
 
-    // 5. 填入渲染命令队列
+    // 填入渲染命令队列
     RenderCommand *cmd = &queue[queue_size++];
     cmd->id = id;
     cmd->x = x;
@@ -176,8 +165,7 @@ void Render_Entity_Push(AssetManager *am, AssetID id, float x, float y, float sc
     cmd->angle = 0.0f;
     cmd->z_index = z_index;
     cmd->flip = SDL_FLIP_NONE;
-
-    cmd->custom_src = phys_src; // 把算好的完美物理切片塞给命令
+    cmd->custom_src = src;
     cmd->use_custom_src = true;
 }
 
@@ -208,9 +196,10 @@ void Render_Flush(AssetManager *am, SDL_Renderer *renderer, float total_time)
         // 决定源切片矩形：如果命令自带了算好的 src，直接用它；否则用资产定义默认的
         SDL_FRect src_rect = cmd->use_custom_src ? cmd->custom_src : def->src_rect;
 
-        // 目标绘制尺寸
-        float draw_w = def->src_rect.w * cmd->scale;
-        float draw_h = def->src_rect.h * cmd->scale;
+        // 目标绘制尺寸：素材源尺寸 × 命令缩放 × 相机缩放
+        // 位置在 Camera_GridToScreen 里已经乘过 zoom，这里不乘的话缩放一开就会脱节
+        float draw_w = def->src_rect.w * cmd->scale * frame_zoom;
+        float draw_h = def->src_rect.h * cmd->scale * frame_zoom;
 
         // 基于资产自带的 pivot 自动计算对齐偏移，无硬编码
         SDL_FRect dst_rect = {
@@ -218,6 +207,14 @@ void Render_Flush(AssetManager *am, SDL_Renderer *renderer, float total_time)
             cmd->y - (def->pivotY * draw_h),
             draw_w,
             draw_h};
+
+        // 1:1 时把目标位置对齐到整像素：相机 lerp 出来的坐标是小数，
+        // LINEAR 采样会让菱形边缘插出半透明，相邻地砖之间出现发丝缝
+        if (frame_zoom > 0.999f && frame_zoom < 1.001f)
+        {
+            dst_rect.x = SDL_roundf(dst_rect.x);
+            dst_rect.y = SDL_roundf(dst_rect.y);
+        }
 
         SDL_FPoint center = {def->pivotX * draw_w, def->pivotY * draw_h};
 
