@@ -108,6 +108,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
     Player_Init(&as->player);
 
     as->camera = Camera_Create(TILE_WIDTH, TILE_HEIGHT, -WINDOW_WIDTH / 2, 0); // 初始偏移到窗口中心
+    // 镜头不许越出地图：地图菱形的世界 AABB
+    Camera_SetBounds(as->camera,
+                     -MAP_HEIGHT * (TILE_WIDTH / 2.0f), 0.0f,
+                     MAP_WIDTH * (TILE_WIDTH / 2.0f),
+                     (MAP_WIDTH + MAP_HEIGHT) * (TILE_HEIGHT / 2.0f));
     // 让相机瞄准玩家
     Camera_LookAt(as->camera, as->player.gridX, as->player.gridY, WINDOW_WIDTH, WINDOW_HEIGHT);
     // 直接对齐，避免开场动画

@@ -18,7 +18,36 @@ Camera *Camera_Create(float tileWidth, float tileHeight, float startX, float sta
     cam->targetZoom = 1.0f; // 初始目标缩放与当前缩放一致
     cam->lerpSpeed = 5.0f;  // 默认平滑度
 
+    cam->hasBounds = false;
+    cam->minWorldX = cam->minWorldY = 0.0f;
+    cam->maxWorldX = cam->maxWorldY = 0.0f;
+
     return cam;
+}
+
+/**
+ * 设置相机允许看到的世界范围（通常是地图的世界 AABB）。
+ * 设置之后 LookAt 会把目标位置夹在这个范围内，镜头不会越过地图边缘。
+ */
+void Camera_SetBounds(Camera *self, float minX, float minY, float maxX, float maxY)
+{
+    self->hasBounds = true;
+    self->minWorldX = minX;
+    self->minWorldY = minY;
+    self->maxWorldX = maxX;
+    self->maxWorldY = maxY;
+}
+
+// 把相机偏移夹进 [minOff, maxOff]；如果可视区域比地图还大，就居中
+static float ClampOffset(float ideal, float minOff, float maxOff)
+{
+    if (maxOff < minOff)
+        return (minOff + maxOff) * 0.5f;
+    if (ideal < minOff)
+        return minOff;
+    if (ideal > maxOff)
+        return maxOff;
+    return ideal;
 }
 
 SDL_FPoint Camera_GridToScreen(const Camera *self, float gx, float gy)
@@ -40,11 +69,26 @@ void Camera_ScreenToGrid(const Camera *self, float sx, float sy, float *gx, floa
  * 让相机锁定目标点
  * @param gx, gy 目标的逻辑网格坐标（通常是玩家的脚下）
  * @param windowW, windowH 窗口宽高（用于居中计算）
+ * @note 如果设置过边界（Camera_SetBounds），目标位置会被夹在边界内，
+ *       镜头跟到地图边缘就停住，玩家继续往边缘走。
  */
 void Camera_LookAt(Camera *self, float target_gx, float target_gy, int windowW, int windowH)
 {
-    self->targetX = GRID_TO_WORLD_X(target_gx, target_gy) - (windowW / 2.0f / self->targetZoom);
-    self->targetY = GRID_TO_WORLD_Y(target_gx, target_gy) - (windowH / 2.0f / self->targetZoom);
+    float zoom = (self->targetZoom > 0.0f) ? self->targetZoom : 1.0f;
+    float viewW = windowW / zoom;
+    float viewH = windowH / zoom;
+
+    float tx = GRID_TO_WORLD_X(target_gx, target_gy) - viewW / 2.0f;
+    float ty = GRID_TO_WORLD_Y(target_gx, target_gy) - viewH / 2.0f;
+
+    if (self->hasBounds)
+    {
+        tx = ClampOffset(tx, self->minWorldX, self->maxWorldX - viewW);
+        ty = ClampOffset(ty, self->minWorldY, self->maxWorldY - viewH);
+    }
+
+    self->targetX = tx;
+    self->targetY = ty;
 }
 
 /**

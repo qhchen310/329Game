@@ -1,4 +1,5 @@
 #include "player.h"
+#include "config.h"
 #include <math.h>
 
 #define INPUT_IDLE 0.0f
@@ -36,8 +37,9 @@ static Direction _Internal_CalcDirection(float dx, float dy)
 
 void Player_Init(Player *player)
 {
-    player->gridX = 2.0f;
-    player->gridY = 2.0f;
+    // 出生在地图中心，镜头两边都有空间
+    player->gridX = MAP_WIDTH * 0.5f;
+    player->gridY = MAP_HEIGHT * 0.5f;
     player->speed = 4.0f;
     player->isMoving = false;
     player->dir = DIR_S;
