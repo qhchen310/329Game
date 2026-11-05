@@ -50,6 +50,18 @@ void SetupTileLibrary(AppState *as)
         0.0f,            // frame_duration: 无动画，传 0.0f
         1                // frames_per_row: 1 行
     );
+
+    // 3. 方块人测试图集：8 方向 × 1 帧，单元格 160×160，脚底在 y=132
+    Asset_Register(
+        as->assetManager,
+        101,                   // AssetID
+        "hero/hero_sheet.png", // Blender 渲染后拼的图集
+        0.0f, 0.0f,            // 起点
+        160.0f, 160.0f,        // 一帧的像素范围
+        0.5f, 0.825f,          // 锚点 = 132/160，正好是脚底
+        0.0f, 0.0f,            // 不走格子锚点
+        1, 0.0f, 1             // 静态、单列
+    );
 }
 // ---------------------------------------------------------
 // 4. SDL_AppInit
@@ -198,13 +210,13 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 
     Render_Entity_Push(
         as->assetManager,
-        100,         // 资产 ID
-        pPos.x,      // 屏幕 X
-        pPos.y,      // 屏幕 Y
-        0.5f,        // 源图 256 按一半绘制
-        0,           // dir: 静态图传 0
-        0,           // current_frame: 静态图传 0
-        LAYER_OBJECT // 物体层
+        101,                   // 资产 ID（Blender 渲染的 8 方向图集）
+        pPos.x,                // 屏幕 X
+        pPos.y,                // 屏幕 Y
+        1.0f,                  // 图集按 1:1 画
+        (int)as->player.dir,   // 方向 = 图集的行
+        0,                     // current_frame: 静态图传 0
+        LAYER_OBJECT           // 物体层
     );
 
     // 4. 执行排序渲染

@@ -141,20 +141,15 @@ void Render_Entity_Push(AssetManager *am, AssetID id, float x, float y, float sc
     if (!def)
         return;
 
-    // 直接使用注册时声明的源矩形，不再用“纹理尺寸 / 逻辑尺寸”反推比例。
-    // 旧写法只对“整张图恰好等于帧网格、且从 (0,0) 开始”成立，带偏移或留白就会算歪。
+    // 多方向图集：行由 dir 决定（静态图也要，8 方向各占一行）；
+    // 列由 current_frame 决定，只有动画素材才会移动。
+    int cols = (def->frames_per_row > 0) ? def->frames_per_row : 1;
+    int col = def->is_animated ? (current_frame % cols) : 0;
+    int row = dir;
+
     SDL_FRect src = def->src_rect;
-
-    // 多方向图集：列来自 current_frame，行来自 dir，步长就是一帧的宽高
-    if (def->is_animated)
-    {
-        int cols = (def->frames_per_row > 0) ? def->frames_per_row : 1;
-        int col = current_frame % cols;
-        int row = dir;
-
-        src.x += col * def->src_rect.w;
-        src.y += row * def->src_rect.h;
-    }
+    src.x += col * def->src_rect.w;
+    src.y += row * def->src_rect.h;
 
     // 填入渲染命令队列
     RenderCommand *cmd = &queue[queue_size++];
