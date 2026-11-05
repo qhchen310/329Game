@@ -41,6 +41,8 @@ void Player_Init(Player *player)
     player->speed = 4.0f;
     player->isMoving = false;
     player->dir = DIR_S;
+    player->animTimer = 0.0f;
+    player->currentFrame = 0;
 }
 
 void Player_Update(Player *self, GameMap *map, float dt, const bool *keys)
@@ -114,9 +116,9 @@ void Player_Update(Player *self, GameMap *map, float dt, const bool *keys)
 
         // --- 核心：更新动画 ---
         self->animTimer += dt;
-        if (self->animTimer >= 0.15f)
-        { // 每 0.15 秒换一帧
-            self->currentFrame = (self->currentFrame + 1) % 4;
+        if (self->animTimer >= PLAYER_FRAME_TIME)
+        {
+            self->currentFrame = (self->currentFrame + 1) % PLAYER_WALK_FRAMES;
             self->animTimer = 0.0f;
         }
 

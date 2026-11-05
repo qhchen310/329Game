@@ -14,7 +14,8 @@
 | 单元格 | 160 × 160 | 游戏里 1:1 显示 |
 | 角色高度 | 104 px | 占单元格 65%，约 1.6 个地砖高 |
 | 脚底位置 | 单元格 y = 132 | `pivotY = 132/160 = 0.825`，必须是整数 |
-| 图集 | 160 × 1280（1 列 × 8 行） | 每行一个朝向 |
+| 图集 | 960 × 1280（**6 列 × 8 行**） | 行 = 朝向，列 = 走路帧 |
+| 走路动画 | 6 帧，每帧 0.1 秒（10fps） | 和 Blender 场景帧率一致 |
 
 > `pivot × 绘制尺寸` 必须是整数，否则 1:1 像素对齐时角色会相对地砖抖 1px。
 
@@ -26,14 +27,14 @@
 
 | 游戏方向 | 行号 | 渲染文件 |
 |---|---|---|
-| N（上） | 0 | `hero_3_00.png` |
-| NE | 1 | `hero_4_00.png` |
-| E | 2 | `hero_5_00.png` |
-| SE | 3 | `hero_6_00.png` |
-| S（下） | 4 | `hero_7_00.png` |
-| SW | 5 | `hero_0_00.png` |
-| W | 6 | `hero_1_00.png` |
-| NW | 7 | `hero_2_00.png` |
+| N（上） | 0 | `hero_3_01..06.png` |
+| NE | 1 | `hero_4_01..06.png` |
+| E | 2 | `hero_5_01..06.png` |
+| SE | 3 | `hero_6_01..06.png` |
+| S（下） | 4 | `hero_7_01..06.png` |
+| SW | 5 | `hero_0_01..06.png` |
+| W | 6 | `hero_1_01..06.png` |
+| NW | 7 | `hero_2_01..06.png` |
 
 这套映射由 `pack_sheet.py` 里的 `ROW_TO_FRAME = [3,4,5,6,7,0,1,2]` 实现——**行序在拼图集时就排好，引擎里 `dir` 直接当行号**，不需要偏移常量。
 
@@ -48,12 +49,12 @@ assets_src/
   Readme.md                  ← 本文档
   hero/
     hero.blend               ← Blender 工程
-    frames/                  ← Blender 原始渲染（320×320，8 张）
-      hero_0_00.png ...
+    frames/                  ← Blender 原始渲染（320×320，8 方向 × 6 帧 = 48 张）
+      hero_<方向>_<帧>.png ...
     pack_sheet.py            ← 拼图集脚本
 
 assets/textures/hero/
-  hero_sheet.png             ← 引擎加载的图集（160×1280）
+  hero_sheet.png             ← 引擎加载的图集（960×1280，6 列 × 8 行）
   hero_sheet.json            ← 元数据（格子尺寸、pivot、行序）
 ```
 
@@ -76,13 +77,17 @@ scene.render.fps = 10
 
 for d in range(8):
     rig.rotation_euler[2] = math.radians(d * 45)
-    scene.render.filepath = os.path.join(out_dir, "hero_%d_00.png" % d)
-    bpy.ops.render.render(write_still=True)
+    for f in range(1, 7):                    # 6 帧走路
+        scene.frame_set(f)
+        scene.render.filepath = os.path.join(out_dir, "hero_%d_%02d.png" % (d, f))
+        bpy.ops.render.render(write_still=True)
 
 rig.rotation_euler[2] = 0
 ```
 
-前提：`CAM_RIG` 是位于原点的空物体，摄像机和灯光都挂在它下面（转支点 = 相机和灯一起转，保证每个方向的光照在屏幕上一致）。
+前提：
+- `CAM_RIG` 是位于原点的空物体，摄像机和灯光都挂在它下面（转支点 = 相机和灯一起转，保证每个方向的光照在屏幕上一致）。
+- 骨架 `HeroRig` 上已经做好 6 帧原地走路动画（帧 1~6，10fps）。
 
 ### 4.2 拼图集
 
@@ -106,17 +111,17 @@ Asset_Register(
     0, 0, 160, 160,         // 一帧的源矩形
     0.5f, 0.825f,           // pivot：132/160，脚底
     0, 0,                   // 格子锚点不用
-    1, 0.0f, 1              // 静态、单列
+    6, 0.1f, 6              // 6 帧走路，每帧 0.1 秒
 );
 ```
 
-绘制时：
+绘制时把方向（行）和当前帧（列）都传进去：
 
 ```c
-Render_Entity_Push(am, 101, x, y, 1.0f, (int)player.dir, 0, LAYER_OBJECT);
+Render_Entity_Push(am, 101, x, y, 1.0f, (int)player.dir, player.currentFrame, LAYER_OBJECT);
 ```
 
-`dir` 就是游戏里的 `Direction` 枚举值，直接对应图集的行。
+`dir` 对应图集的行，`currentFrame`（0~5）对应列。帧计时器在 `player.c` 里：移动时每 0.1 秒 `currentFrame = (currentFrame + 1) % 6`，停下时归 0。
 
 ---
 

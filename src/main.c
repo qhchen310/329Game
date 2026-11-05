@@ -60,7 +60,7 @@ void SetupTileLibrary(AppState *as)
         160.0f, 160.0f,        // 一帧的像素范围
         0.5f, 0.825f,          // 锚点 = 132/160，正好是脚底
         0.0f, 0.0f,            // 不走格子锚点
-        1, 0.0f, 1             // 静态、单列
+        6, 0.1f, 6             // 6 帧走路，每帧 0.1 秒
     );
 }
 // ---------------------------------------------------------
@@ -215,7 +215,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         pPos.y,                // 屏幕 Y
         1.0f,                  // 图集按 1:1 画
         (int)as->player.dir,   // 方向 = 图集的行
-        0,                     // current_frame: 静态图传 0
+        as->player.currentFrame, // 动画帧 = 图集的列
         LAYER_OBJECT           // 物体层
     );
 

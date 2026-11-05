@@ -29,4 +29,8 @@
 // 逻辑素材定义容量
 #define DEF_CAPACITY 128
 
+// 角色走路动画
+#define PLAYER_WALK_FRAMES 6
+#define PLAYER_FRAME_TIME 0.1f // 每帧 0.1 秒 = 10fps，和 Blender 渲染帧率一致
+
 #endif
