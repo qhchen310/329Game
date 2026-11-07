@@ -22,7 +22,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CELL = 160                 # 游戏里一格的像素尺寸
 COLS = 6                   # 走路循环 6 帧
-PIVOT_Y = 132              # 脚底在单元格里的 y（必须是整数）
+PIVOT_Y = 130              # 脚底在单元格里的 y（必须是整数）
 ROW_TO_FRAME = [3, 4, 5, 6, 7, 0, 1, 2]   # N,NE,E,SE,S,SW,W,NW -> 渲染方向编号
 
 
