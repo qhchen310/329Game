@@ -37,13 +37,13 @@ def bone(name, head, tail, parent=None):
     return b
 
 
-bone("root", (0, 0, 0), (0, 0, 0.62))
-bone("spine", (0, 0, 0.62), (0, 0, 1.12), "root")
-bone("head", (0, 0, 1.12), (0, 0, 1.60), "spine")
-bone("leg.L", (0.10, 0, 0.62), (0.10, 0, 0), "root")
-bone("leg.R", (-0.10, 0, 0.62), (-0.10, 0, 0), "root")
-bone("arm.L", (0.19, 0, 1.06), (0.21, 0, 0.66), "spine")
-bone("arm.R", (-0.19, 0, 1.06), (-0.21, 0, 0.66), "spine")
+bone("root", (0, 0, 0), (0, 0, 0.60))
+bone("spine", (0, 0, 0.60), (0, 0, 1.15), "root")
+bone("head", (0, 0, 1.15), (0, 0, 1.64), "spine")
+bone("leg.L", (0.11, 0, 0.60), (0.11, 0, 0), "root")
+bone("leg.R", (-0.11, 0, 0.60), (-0.11, 0, 0), "root")
+bone("arm.L", (0.235, 0, 1.03), (0.25, 0, 0.62), "spine")
+bone("arm.R", (-0.235, 0, 1.03), (-0.25, 0, 0.62), "spine")
 bpy.ops.object.mode_set(mode='OBJECT')
 
 # ---------- 自动权重 ----------
